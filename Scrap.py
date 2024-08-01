@@ -87,7 +87,6 @@ def risk_scraper():
         cursor.execute("""CREATE TABLE IF NOT EXISTS arg_risk
             (
                 "date" date NOT NULL,
-                "time" time without time zone NOT NULL,
                 "last_value" numeric,
                 "variance" real
             )""")
@@ -106,7 +105,6 @@ def risk_scraper():
             # print(crv)
             risk.append(datetime.now().strftime('%d.%m.%Y'))
             date = datetime.now().date()
-            moment = datetime.now().strftime('%H:%M:%S')
             for i in rsk:
                 risk.append(i.text)
                 value = float(i.text.replace(',', '.'))
@@ -115,8 +113,8 @@ def risk_scraper():
                 variance = float(i.text[1:4].replace(',', '.'))
             print(risk[-3] + " | " + risk[-2] + " | " + risk[-1])
             cursor.execute("""INSERT INTO arg_risk
-                            (date, time, last_value, variance)
-                            VALUES (%s, %s, %s, %s)""", (date, moment, value, variance))
+                            (date, last_value, variance)
+                            VALUES (%s, %s, %s)""", (date, value, variance))
             cursor.execute("SELECT * FROM arg_risk")
             conn.commit()
             time.sleep(28800)
