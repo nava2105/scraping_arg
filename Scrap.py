@@ -25,6 +25,7 @@ except Error:
 
 exchange = list()
 risk = list()
+inflation = list()
 
 def exchange_scraper():
     try:
@@ -43,15 +44,20 @@ def exchange_scraper():
         try:
             cursor.execute("""CREATE OR REPLACE VIEW DataWarehouse
                          AS
-                         SELECT t1.date,
-                            t2.time,
-                            t2.value AS exchange_value,
-                            t2.variance AS exchange_variance,
-                            t2.variance_percentage AS exchange_variance_percentage,
-                            t1.last_value AS risk_value,
-                            t1.variance AS risk_value_variance
-                           FROM arg_risk t1
-                             JOIN arg_exchange t2 ON t1.date = t2.date;
+                         SELECT 
+                            t1.date,     
+                            t2."time",     
+                            t2.value AS exchange_value,     
+                            t2.variance AS exchange_variance,     
+                            t2.variance_percentage AS exchange_variance_percentage,     
+                            t1.last_value AS risk_value,     
+                            t1.variance AS risk_value_variance, 	
+                            t3.value AS inflation    
+                        FROM 
+                            arg_risk t1     
+                            JOIN arg_exchange t2 ON t1.date = t2.date 	
+                            JOIN arg_inflation t3 ON EXTRACT(YEAR FROM t1.date) = EXTRACT(YEAR FROM t3.date)
+                                                 AND EXTRACT(MONTH FROM t1.date) = EXTRACT(MONTH FROM t3.date);
                         """)
             conn.commit()
         except Error as e:
@@ -87,7 +93,6 @@ def exchange_scraper():
                 cursor.execute("""INSERT INTO arg_exchange
                                 (date, time, value, variance, variance_percentage) 
                                 VALUES (%s, %s, %s, %s, %s)""", (date, moment, value, variance, percent))
-                cursor.execute("SELECT * FROM arg_exchange")
                 conn.commit()
             else:
                 print(exchange[-2] + " | " + exchange[-1])
@@ -110,15 +115,20 @@ def risk_scraper():
         try:
             cursor.execute("""CREATE OR REPLACE VIEW DataWarehouse
                          AS
-                         SELECT t1.date,
-                            t2.time,
-                            t2.value AS exchange_value,
-                            t2.variance AS exchange_variance,
-                            t2.variance_percentage AS exchange_variance_percentage,
-                            t1.last_value AS risk_value,
-                            t1.variance AS risk_value_variance
-                           FROM arg_risk t1
-                             JOIN arg_exchange t2 ON t1.date = t2.date;
+                         SELECT 
+                            t1.date,     
+                            t2."time",     
+                            t2.value AS exchange_value,     
+                            t2.variance AS exchange_variance,     
+                            t2.variance_percentage AS exchange_variance_percentage,     
+                            t1.last_value AS risk_value,     
+                            t1.variance AS risk_value_variance, 	
+                            t3.value AS inflation    
+                        FROM 
+                            arg_risk t1     
+                            JOIN arg_exchange t2 ON t1.date = t2.date 	
+                            JOIN arg_inflation t3 ON EXTRACT(YEAR FROM t1.date) = EXTRACT(YEAR FROM t3.date)
+                                                 AND EXTRACT(MONTH FROM t1.date) = EXTRACT(MONTH FROM t3.date);
                         """)
             conn.commit()
         except Error as e:
@@ -164,17 +174,82 @@ def risk_scraper():
             cursor.execute("""INSERT INTO arg_risk
                             (date, last_value, variance)
                             VALUES (%s, %s, %s)""", (date, value, variance))
-            cursor.execute("SELECT * FROM arg_risk")
             conn.commit()
+            time.sleep(86400)
+    except Error as e:
+        print(e)
+
+def inflation_scraper():
+    try:# Connect to the database
+        conn = psycopg2.connect(**conn_params)
+        cursor = conn.cursor()
+        cursor.execute("""CREATE TABLE IF NOT EXISTS arg_inflation
+            (
+                "date" date NOT NULL,
+                "value" numeric
+            )""")
+        conn.commit()
+        print("Successful connection")
+        try:
+            cursor.execute("""CREATE OR REPLACE VIEW DataWarehouse
+                         AS
+                         SELECT 
+                            t1.date,     
+                            t2."time",     
+                            t2.value AS exchange_value,     
+                            t2.variance AS exchange_variance,     
+                            t2.variance_percentage AS exchange_variance_percentage,     
+                            t1.last_value AS risk_value,     
+                            t1.variance AS risk_value_variance, 	
+                            t3.value AS inflation    
+                        FROM 
+                            arg_risk t1     
+                            JOIN arg_exchange t2 ON t1.date = t2.date 	
+                            JOIN arg_inflation t3 ON EXTRACT(YEAR FROM t1.date) = EXTRACT(YEAR FROM t3.date)
+                                                 AND EXTRACT(MONTH FROM t1.date) = EXTRACT(MONTH FROM t3.date);
+                        """)
+            conn.commit()
+        except Error as e:
+            print(e)
+        while True:
+            driver2 = webdriver.Edge()
+            driver2.get('https://es.tradingeconomics.com/argentina/inflation-cpi')
+            html2 = driver2.page_source
+            soup3 = BeautifulSoup(html2, 'html.parser')
+
+            # Country inflation
+            inf = soup3.find_all('td', id="actual")
+            # print(inf)
+            date = datetime.now().date()
+            inflation.append(date)
+            cursor.execute("SELECT value FROM arg_inflation")
+            record = cursor.fetchall()
+            for i in inf:
+                inflation.append(i.text.replace("\n",'').strip().replace('%','').replace("'",''))
+            try:
+                print(inflation)
+                print(record[-1][-1])
+                value = float(inflation[-2])
+                print(value)
+                if (record[-1][-1] != value):
+                    cursor.execute("""INSERT INTO arg_inflation
+                                                (date, value)
+                                                VALUES (%s, %s)""", (date, value))
+                    conn.commit()
+            except Error as e:
+                print(e)
             time.sleep(86400)
     except Error as e:
         print(e)
 
 hilo1 = threading.Thread(target=exchange_scraper)
 hilo2 = threading.Thread(target=risk_scraper)
+hilo3 = threading.Thread(target=inflation_scraper)
 
 hilo1.start()
 hilo2.start()
+hilo3.start()
 
 hilo1.join()
 hilo2.join()
+hilo3.join()
