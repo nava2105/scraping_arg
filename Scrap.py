@@ -96,7 +96,7 @@ def exchange_scraper():
                 conn.commit()
             else:
                 print(exchange[-2] + " | " + exchange[-1])
-            time.sleep(9)
+            time.sleep(30)
     except Error as e:
         print(e)
 
@@ -143,7 +143,8 @@ def risk_scraper():
             rsk = soup2.find_all('span', class_='day-summary__value value data-valor')
             # print(rsk)
             # Country risk
-            crv = soup2.find_all('span', class_='variation-last__percent percent data-class-variacion data-variacion indicators__value down')
+            # crv = soup2.find_all('span', class_='variation-last__percent percent data-class-variacion data-variacion indicators__value down')
+            crv = soup2.find_all('span', class_='day-summary__value value data-varpesos')
             # print(crv)
             risk.append(datetime.now().strftime('%d.%m.%Y'))
             date = datetime.now().date()
@@ -227,7 +228,7 @@ def inflation_scraper():
             for i in inf:
                 inflation.append(i.text.replace("\n",'').strip().replace('%','').replace("'",''))
             try:
-                print(inflation)
+                print('hola mundo')
                 print(record[-1][-1])
                 value = float(inflation[-2])
                 print(value)
